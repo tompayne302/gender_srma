@@ -1,0 +1,2019 @@
+---
+title: "Gender differences in intraoperative awareness v0.6"
+author: "Hannah Braithwaite & Tom Payne"
+date: '`r format(Sys.time(), "%Y-%m-%d %H:%M")`'
+output:   
+  html_document:
+      toc: true
+      toc_depth: 4
+      number_sections: true
+      toc_float: true
+      theme: united
+---
+***Changes this version***
+
+- Combind the time to emergence into one plot
+
+
+```{r setup, include=FALSE}
+
+library(tidyverse)
+library(PerformanceAnalytics)
+library(ggplot2)
+library(ggpubr)
+library(gridExtra)
+library(ggrepel)
+library(knitr)
+library(kableExtra)
+library(metafor)
+library(lme4)
+library(numDeriv)
+library(BiasedUrn)
+library(wildmeta)
+library(gt)
+library(naniar)
+library(psych)
+library(dmetar)
+
+knitr::opts_chunk$set(echo = F, message = F, warning = F, error = T, 
+                      fig.height = 10, fig.width=8.5, out.width = "100%", 
+                      dev = "png", dpi = 400, cache = T)
+### Set filepaths 
+import_path_mac <- '/Users/thomaspayne/Documents/MPhil/Gender SR/'
+export_path_mac <- '/Users/thomaspayne/Documents/MPhil/Gender SR/'
+
+dat <- read.csv(paste0(export_path_mac, "All_Data.csv"))
+
+## Remove the 'et al.' from the rows
+dat$Study <- gsub(" et al.", "", dat$Study)
+dat$Study <- gsub("  ", " ", dat$Study)
+dat$Study <- gsub(" ,", ",", dat$Study)
+
+## Change the name of the Avidan study as per request from reviewers
+dat$Study <- gsub("a; ETAG", "ETAG", dat$Study)
+dat$Study <- gsub("a; BIS", "BIS", dat$Study)
+dat$Study <- gsub("Avidan \\(b\\)", "Avidan", dat$Study)
+
+```
+
+# AAGA
+## Peto Method
+
+- Studies with no events in either group are dropped
+- Zero cells are not an issue (Peto method doesn't calculate individual odds ratios) for the pooled estimate
+- Continuity correction of 0.5 applied to calculate individual study odds ratios for the forest plot
+
+### Confirmed AAGA
+```{r Confirmed_AAGA_Peto}
+
+res <- rma.peto(ai=Females_aware, bi=Females_unaware, ci=Males_aware, di=Males_unaware,
+        subset=(Alloc=="Confirmed"), data=dat, slab=paste(Study,Year, sep=", "))
+IVdat <- dat %>%
+  filter(Alloc == "Confirmed") %>%
+  group_by(Study) %>%
+  arrange(weights(res))
+res <- rma.peto(ai=Females_aware, bi=Females_unaware, ci=Males_aware, di=Males_unaware,
+        subset=(Alloc=="Confirmed"), data=IVdat, slab=paste(Study,Year, sep=", "))
+mlabfun <- function(text, res) {
+  list(bquote(paste(.(text),
+                    " (Q = ", .(formatC(res$QE, digits=2, format="f")),
+                    ", df = ", .(res$k - res$p),
+                    ", p ", .(metafor:::.pval(res$QEp, digits=2, showeq=TRUE, sep=" ")), "; ",
+                    I^2, " = ", .(formatC(res$I2, digits=1, format="f")), "%",
+                 ")")))}
+op <- par(cex=.75, font=8)
+options(na.action = "na.omit")
+forest(res, xlim=c(-13.5, 7), at=log(c(0.1, 0.25, 1, 4, 7)), atransf=exp, showweights=TRUE,
+       col ="orange", border="orange", colout="blue",
+       ilab=cbind(IVdat$Females_aware, IVdat$Females_unaware, IVdat$Males_aware, IVdat$Males_unaware,
+       IVdat$Total),
+       ilab.xpos=c(-8,-6.9,-5.8,-4.7,-3.6), cex=.9,
+       mlab=mlabfun("Peto Model", res),
+       header=c("Authors, Year", "Study Weight, Odds Ratio (95% CI)"))
+par(cex=0.7)
+text(c(-8,-6.9,-5.8,-4.7,-3.6), 31.5, c("Aware", "Unaware", "Aware", "Unaware", "n"))
+text(c(-7.4,-5.2), 32.5, c("Females", "Males"))
+par(font=1, cex=0.75)
+text(c(-1.5,1.5), -2.5, c("Higher in males", "Higher in females"))
+```
+
+### Confirmed or Possible AAGA
+```{r Combined_AAGA_Peto}
+res <- rma.peto(ai=Females_aware, bi=Females_unaware, ci=Males_aware, di=Males_unaware,
+        subset=(Alloc=="Combined"), data=dat, slab=paste(Study,Year, sep=", "))
+IVdat <- dat %>%
+  filter(Alloc == "Combined") %>%
+  group_by(Study) %>%
+  arrange(weights(res))
+res <- rma.peto(ai=Females_aware, bi=Females_unaware, ci=Males_aware, di=Males_unaware,
+        subset=(Alloc=="Combined"), data=IVdat, slab=paste(Study,Year, sep=", "))
+mlabfun <- function(text, res) {
+  list(bquote(paste(.(text),
+                    " (Q = ", .(formatC(res$QE, digits=2, format="f")),
+                    ", df = ", .(res$k - res$p),
+                    ", p ", .(metafor:::.pval(res$QEp, digits=2, showeq=TRUE, sep=" ")), "; ",
+                    I^2, " = ", .(formatC(res$I2, digits=1, format="f")), "%",
+                 ")")))}
+op <- par(cex=.75, font=8)
+forest(res, xlim=c(-13.5, 7), at=log(c(0.1, 0.25, 1, 4, 7)), atransf=exp, showweights=TRUE,
+        col ="orange", border="orange", colout="blue",
+       ilab=cbind(IVdat$Females_aware, IVdat$Females_unaware, IVdat$Males_aware, IVdat$Males_unaware,
+       IVdat$Total),
+       ilab.xpos=c(-8,-6.9,-5.8,-4.7,-3.6), cex=.9,
+       mlab=mlabfun("Peto Model", res),
+       header=c("Authors, Year", "Study Weight, Odds Ratio (95% CI)"))
+par(cex=0.7)
+text(c(-8,-6.9,-5.8,-4.7,-3.6), 31.5, c("Aware", "Unaware", "Aware", "Unaware", "n"))
+text(c(-7.4,-5.2), 32.5, c("Females", "Males"))
+par(font=1, cex=0.75)
+text(c(-1.5,1.5), -2.5, c("Higher in males", "Higher in females"))
+```
+
+## Sequential Exclusion Analysis
+
+- The Peto method is used for both sequential exclusion analyses
+
+### Confirmed AAGA
+
+```{r Confirmed_AAGA_Seq_Excl_Analysis}
+
+## Subset the "Confirmed" studies (needed for the study_names variable)
+
+Pdat <- dat %>%
+  filter(Alloc == "Confirmed")
+
+## Calculate the Peto method
+
+res <- rma.peto(ai=Females_aware, bi=Females_unaware, ci=Males_aware, di=Males_unaware,
+        data=Pdat, slab=paste(Study,Year, sep=", "))
+
+## Convert leave1out diagnostics to a data frame (it's printed as a list)
+## Select the columns of interest and round the numeric values to 2 d.p.
+
+tabdat <- as.data.frame(leave1out(res, transf=exp)) %>% 
+  select(estimate, pval, ci.lb, ci.ub, Q,  Qp, I2) %>%
+  mutate_if(is.numeric, ~round(., 2))
+
+## Add another column with study names as rows as I can't figure out
+## how to do it with the existing data frame
+
+study_names <- paste(Pdat$Study, Pdat$Year, sep=", ")
+
+## Combine the new column of study names with the influence data
+
+tabdat1 <- cbind(study_names, tabdat)
+
+## Create a table using the gt package
+
+gt(tabdat1) %>%
+  cols_label(
+    estimate = "Odds Ratio",
+    pval = "p-value",
+    ci.lb = "Lower bound",
+    ci.ub = "Upper bound",
+    Q = "Cochran's Q",
+    Qp = "p-value",
+    I2 = "I-squared (%)",
+    study_names = "Authors, Year") %>%
+  tab_spanner(
+    label = "95% confidence interval",
+    columns = c(ci.lb, ci.ub)) %>%
+  tab_spanner(
+    label = "Heterogeneity",
+    columns = c(Q, Qp, I2)) %>%
+  tab_spanner(
+    label = "Effect Size",
+    columns = c(estimate, pval, ci.lb, ci.ub)) %>%
+  tab_footnote(
+    footnote = "p < 0.05",
+    locations = cells_body(columns = pval, rows = pval <= 0.05),
+    placement = "right") %>%
+  opt_footnote_marks(
+    marks = "standard")
+```
+
+### Confirmed or Possible AAGA
+
+```{r Combined_AAGA_Seq_Excl_Analysis}
+
+## Subset the "Combined" studies (needed for the study_names variable)
+
+Pdat <- dat %>%
+  filter(Alloc == "Combined")
+
+## Calculate the Peto method
+
+res <- rma.peto(ai=Females_aware, bi=Females_unaware, ci=Males_aware, di=Males_unaware,
+        data=Pdat, slab=paste(Study,Year, sep=", "))
+
+## Convert leave1out diagnostics to a data frame (it's printed as a list)
+## Select the columns of interest and round the numeric values to 2 d.p.
+
+tabdat <- as.data.frame(leave1out(res, transf=exp)) %>% 
+  select(estimate, pval, ci.lb, ci.ub, Q,  Qp, I2) %>%
+  mutate_if(is.numeric, ~round(., 2))
+
+## Add another column with study names as rows as I can't figure out
+## how to do it with the existing data frame
+
+study_names <- paste(Pdat$Study, Pdat$Year, sep=", ")
+
+## Combine the new column of study names with the influence data
+
+tabdat1 <- cbind(study_names, tabdat)
+
+## Create a table using the gt package
+
+gt(tabdat1) %>%
+  cols_label(
+    estimate = "Odds Ratio",
+    pval = "p-value",
+    ci.lb = "Lower bound",
+    ci.ub = "Upper bound",
+    Q = "Cochran's Q",
+    Qp = "p-value",
+    I2 = "I-squared (%)",
+    study_names = "Authors, Year") %>%
+  tab_spanner(
+    label = "95% confidence interval",
+    columns = c(ci.lb, ci.ub)) %>%
+  tab_spanner(
+    label = "Heterogeneity",
+    columns = c(Q, Qp, I2)) %>%
+  tab_spanner(
+    label = "Effect Size",
+    columns = c(estimate, pval, ci.lb, ci.ub)) %>%
+  tab_footnote(
+    footnote = "p < 0.05",
+    locations = cells_body(columns = pval, rows = pval <= 0.05),
+    placement = "right") %>%
+  opt_footnote_marks(
+    marks = "standard")
+```
+
+## Robust variance estimation
+
+- We have to use the inverse variance methods for this unfortunately
+
+### Confirmed AAGA
+
+```{r Confirmed_AAGA_RVE}
+
+IVdat <- escalc(measure="OR", ai=Females_aware, bi=Females_unaware,
+              ci=Males_aware, di=Males_unaware, data=dat, 
+              subset=(Alloc=="Confirmed"), slab=paste(Study,Year, sep=", "))
+res <- rma.mv(yi = yi, V = vi, 
+                     slab = paste(Study,Year, sep=", "),
+                     data = IVdat,
+                     random = ~ 1 | Cluster/es.id, 
+                     test = "t", 
+                     method = "REML")
+
+
+tabdat <- as.data.frame(predict(robust(res, cluster=Cluster, clubSandwich=FALSE), transf=exp)) %>%
+  mutate_if(is.numeric, ~round(., 2))
+
+gt(tabdat) %>%
+  cols_label(
+    pred = "Odds ratio",
+    ci.lb = "Lower bound",
+    ci.ub = "Upper bound",
+    pi.lb = "Lower bound",
+    pi.ub = "Upper bound") %>%
+  tab_spanner(
+    label = "Confidence interval (95%)",
+    columns = c(ci.lb, ci.ub)) %>%
+  tab_spanner(
+    label = "Prediction Interval (95%)",
+    columns = c(pi.lb, pi.ub))
+ 
+```
+
+### Confirmed or Possible AAGA
+
+```{r Combined_AAGA_RVE}
+
+IVdat <- escalc(measure="OR", ai=Females_aware, bi=Females_unaware,
+              ci=Males_aware, di=Males_unaware, data=dat, 
+              subset=(Alloc=="Combined"), slab=paste(Study,Year, sep=", "))
+res <- rma.mv(yi = yi, V = vi, 
+                     slab = paste(Study,Year, sep=", "),
+                     data = IVdat,
+                     random = ~ 1 | Cluster/es.id, 
+                     test = "t", 
+                     method = "REML")
+tabdat <- as.data.frame(predict(robust(res, cluster=Cluster, clubSandwich=FALSE), transf=exp)) %>%
+  mutate_if(is.numeric, ~round(., 2))
+
+gt(tabdat) %>%
+  cols_label(
+    pred = "Odds ratio",
+    ci.lb = "Lower bound",
+    ci.ub = "Upper bound",
+    pi.lb = "Lower bound",
+    pi.ub = "Upper bound") %>%
+  tab_spanner(
+    label = "Confidence interval (95%)",
+    columns = c(ci.lb, ci.ub)) %>%
+  tab_spanner(
+    label = "Prediction Interval (95%)",
+    columns = c(pi.lb, pi.ub))
+ 
+```
+
+## Summary Table of Different Models
+
+### Confirmed AAGA
+
+```{r Confirmed_AAGA_Sum_Table}
+
+## Calculate the individual study ORs for the IV models
+IVdat <- escalc(measure="OR", ai=Females_aware, bi=Females_unaware,
+              ci=Males_aware, di=Males_unaware, data=dat, 
+              subset=(Alloc=="Confirmed"), slab=paste(Study,Year, sep=", "))
+IVdatAS <- escalc(measure="AS", ai=Females_aware, bi=Females_unaware,
+              ci=Males_aware, di=Males_unaware, data=dat, 
+              subset=(Alloc=="Confirmed"), slab=paste(Study,Year, sep=", "))
+
+## Calculate the summary statistics for each model
+res_Peto <- rma.peto(ai=Females_aware, bi=Females_unaware, ci=Males_aware, di=Males_unaware,
+        subset=(Alloc=="Confirmed"), data=dat, slab=paste(Study,Year, sep=", "))
+res_Peto_predict <- predict(res_Peto, transf=exp)
+res_MH <- rma.mh(measure="OR", ai=Females_aware, bi=Females_unaware,
+              ci=Males_aware, di=Males_unaware, data=dat,
+              slab=paste(Study,Year, sep=","), subset=(Alloc=="Confirmed"))
+res_MH_predict <- predict(res_MH, transf=exp)
+res_DL <- rma(yi, vi, data=IVdat, 
+              test="knha", method = "DL")
+res_DL_predict <- predict(res_DL, transf=exp)
+res_PM <- rma(yi, vi, data=IVdat, 
+                      test="knha", method = "PM")
+res_PM_predict <- predict(res_PM, transf=exp)
+res_REML <- rma(yi, vi, data=IVdat, 
+                        test="knha", method = "REML")
+res_REML_predict <- predict(res_REML, transf=exp)
+res_REML_adhoc <- rma(yi, vi, data=IVdat, 
+                              test="adhoc", method = "REML")
+res_REML_adhoc_predict <- predict(res_REML_adhoc, transf=exp)
+res_REML_z <- rma(yi, vi, data=IVdat, 
+                          test="z", method = "REML")
+res_REML_z_predict <- predict(res_REML_z, transf=exp)
+res_GLMM <- rma.glmm(measure="OR", ai=Females_aware, 
+                             bi=Females_unaware, 
+                             ci=Males_aware, di=Males_unaware, data=dat, 
+                             slab=paste(Study,Year, sep=", "), 
+                             model = "CM.AL", subset=(Alloc=="Confirmed"))
+res_GLMM_predict <- predict(res_GLMM, transf=exp)
+res_AS <- rma(yi, vi, data=IVdatAS, 
+              test="adhoc", method = "REML")
+res_AS_predict <- predict(res_AS)
+
+## Combine the effect size statistics into a table
+
+tabdat_predict <-  as.data.frame(rbind(as.numeric(unlist(res_Peto_predict)),
+                               as.numeric(unlist(res_MH_predict)), 
+                               as.numeric(unlist(res_DL_predict)),
+                               as.numeric(unlist(res_PM_predict)), 
+                               as.numeric(unlist(res_REML_predict)), 
+                               as.numeric(unlist(res_REML_adhoc_predict)),
+                               as.numeric(unlist(res_REML_z_predict)),
+                               as.numeric(unlist(res_GLMM_predict)),
+                               as.numeric(unlist(res_AS_predict))))
+
+tabdat_predict <- tabdat_predict %>%
+  select(1:6, -2) %>%
+  mutate_if(is.numeric, ~round(., 2))
+  
+
+
+## Combine the heterogeneity statistics into a table
+
+tabdat_hetero <- as.data.frame(rbind(unlist(res_Peto), unlist(res_MH), unlist(res_DL),
+                                     unlist(res_PM), unlist(res_REML),
+                                     unlist(res_REML_adhoc), unlist(res_REML_z),
+                                     unlist(res_GLMM), unlist(res_AS)))
+
+tabdat_hetero <- as.data.frame(rbind(res_Peto, res_MH, res_DL,
+                                     res_PM, res_REML,
+                                     res_REML_adhoc, res_REML_z,
+                                     res_GLMM, res_AS))
+tabdat_hetero <- tabdat_hetero %>%
+  select(pval, tau2) %>%
+  mutate(pval = as.numeric(pval)) %>%
+  mutate(tau2 = as.numeric(tau2)) %>%
+  mutate_if(is.numeric, ~round(., 2))
+
+
+## Create a new character vector of study names
+
+models <- c("Peto", "Mantel-Haenszel", "DerSimonian-Laird", "Paule-Mandel", "Restricted Maximum Likelihood", 
+            "Restricted Maximum Likelihood with modified HKSJ", 
+            "Restricted Maximum Likelihood without HKSJ", 
+            "Generalised Linear Mixed-Effects Model", "Restricted Maximum Likelihood with modified HKSJ")
+
+effect_est <- as.vector(c("Odds Ratio", "Odds Ratio", "Odds Ratio", "Odds Ratio",
+                          "Odds Ratio", "Odds Ratio", "Odds Ratio", "Odds Ratio",
+                          "Arcsine Difference"))
+
+## Combine the new column of study names with the prediction
+## and heterogeneity data
+
+tabdat <- as.data.frame(cbind(models, tabdat_predict, tabdat_hetero, effect_est))
+
+## Replace tau^2 and pi.ub with NA for the fixed effect models
+
+tabdat[1:2, c(6,8)] <- "NA"
+
+## Create the final table
+
+tabdat %>%
+  gt(
+  rowname_col = "models",
+  groupname_col = "effect_est") %>%
+  tab_stubhead(label = "Statistical Model") %>%
+  cols_label(
+    V1 = "Estimate",
+    V3 = "Lower bound",
+    V4 = "Upper bound",
+    V5 = "Lower bound",
+    V6 = "Upper bound",
+    pval = "p-value",
+    tau2 = "tau-squared",
+    models = "Statistical Model") %>%
+  tab_spanner(
+    label = "95% confidence interval",
+    columns = c(V3, V4)) %>%
+  tab_spanner(
+    label = "95% prediction interval",
+    columns = c(V5, V6)) %>%
+  tab_spanner(
+    label = "Heterogeneity",
+    columns = c(tau2)) %>%
+  tab_spanner(
+    label = "Effect Size",
+    columns = c(V1, V3, V4, V5, V6, pval)) %>%
+  tab_footnote(
+    footnote = "Confidence interval calculated using t-distribution",
+    locations = cells_stub(rows = models == "Generalised Linear Mixed-Effects Model"),
+    placement = "right") %>%
+  tab_footnote(
+    footnote = "Conditional model, approximate likelihood",
+    locations = cells_stub(rows = models == "Generalised Linear Mixed-Effects Model"),
+    placement = "right") %>%
+  tab_footnote(
+    footnote = "Confidence interval calculated using HKSJ adjustment",
+    locations = list(cells_stub(rows = models == "DerSimonian-Laird"), 
+                                cells_stub(rows = models == "Paule-Mandel"),
+                                cells_stub(rows = models == "Restricted Maximum Likelihood")),
+    placement = "right") %>%
+  opt_footnote_marks(
+    marks = "standard")
+
+```
+
+### Confirmed or Possible AAGA
+
+```{r Combined_AAGA_Sum_Table}
+
+## Calculate the individual study ORs for the IV models
+IVdat <- escalc(measure="OR", ai=Females_aware, bi=Females_unaware,
+              ci=Males_aware, di=Males_unaware, data=dat, 
+              subset=(Alloc=="Combined"), slab=paste(Study,Year, sep=", "))
+IVdatAS <- escalc(measure="AS", ai=Females_aware, bi=Females_unaware,
+              ci=Males_aware, di=Males_unaware, data=dat, 
+              subset=(Alloc=="Combined"), slab=paste(Study,Year, sep=", "))
+
+## Calculate the summary statistics for each model
+res_Peto <- rma.peto(ai=Females_aware, bi=Females_unaware, ci=Males_aware, di=Males_unaware,
+        subset=(Alloc=="Combined"), data=dat, slab=paste(Study,Year, sep=", "))
+res_Peto_predict <- predict(res_Peto, transf=exp)
+res_MH <- rma.mh(measure="OR", ai=Females_aware, bi=Females_unaware,
+              ci=Males_aware, di=Males_unaware, data=dat,
+              slab=paste(Study,Year, sep=","), subset=(Alloc=="Combined"))
+res_MH_predict <- predict(res_MH, transf=exp)
+res_DL <- rma(yi, vi, data=IVdat, 
+              test="knha", method = "DL")
+res_DL_predict <- predict(res_DL, transf=exp)
+res_PM <- rma(yi, vi, data=IVdat, 
+                      test="knha", method = "PM")
+res_PM_predict <- predict(res_PM, transf=exp)
+res_REML <- rma(yi, vi, data=IVdat, 
+                        test="knha", method = "REML")
+res_REML_predict <- predict(res_REML, transf=exp)
+res_REML_adhoc <- rma(yi, vi, data=IVdat, 
+                              test="adhoc", method = "REML")
+res_REML_adhoc_predict <- predict(res_REML_adhoc, transf=exp)
+res_REML_z <- rma(yi, vi, data=IVdat, 
+                          test="z", method = "REML")
+res_REML_z_predict <- predict(res_REML_z, transf=exp)
+res_GLMM <- rma.glmm(measure="OR", ai=Females_aware, 
+                             bi=Females_unaware, 
+                             ci=Males_aware, di=Males_unaware, data=dat, 
+                             slab=paste(Study,Year, sep=", "), 
+                             model = "CM.AL", subset=(Alloc=="Combined"))
+res_GLMM_predict <- predict(res_GLMM, transf=exp)
+res_AS <- rma(yi, vi, data=IVdatAS, 
+              test="knha", method = "REML")
+res_AS_predict <- predict(res_AS)
+
+## Combine the effect size statistics into a table
+
+tabdat_predict <-  as.data.frame(rbind(as.numeric(unlist(res_Peto_predict)),
+                               as.numeric(unlist(res_MH_predict)), 
+                               as.numeric(unlist(res_DL_predict)),
+                               as.numeric(unlist(res_PM_predict)), 
+                               as.numeric(unlist(res_REML_predict)), 
+                               as.numeric(unlist(res_REML_adhoc_predict)),
+                               as.numeric(unlist(res_REML_z_predict)),
+                               as.numeric(unlist(res_GLMM_predict)),
+                               as.numeric(unlist(res_AS_predict))))
+
+tabdat_predict <- tabdat_predict %>%
+  select(1:6, -2) %>%
+  mutate_if(is.numeric, ~round(., 2))
+  
+
+
+## Combine the heterogeneity statistics into a table
+
+tabdat_hetero <- as.data.frame(rbind(unlist(res_Peto), unlist(res_MH), unlist(res_DL),
+                                     unlist(res_PM), unlist(res_REML),
+                                     unlist(res_REML_adhoc), unlist(res_REML_z),
+                                     unlist(res_GLMM), unlist(res_AS)))
+
+tabdat_hetero <- as.data.frame(rbind(res_Peto, res_MH, res_DL,
+                                     res_PM, res_REML,
+                                     res_REML_adhoc, res_REML_z,
+                                     res_GLMM, res_AS))
+tabdat_hetero <- tabdat_hetero %>%
+  select(pval, tau2) %>%
+  mutate(pval = as.numeric(pval)) %>%
+  mutate(tau2 = as.numeric(tau2)) %>%
+  mutate_if(is.numeric, ~round(., 2))
+
+
+## Create a new character vector of study names
+
+models <- c("Peto", "Mantel-Haenszel", "DerSimonian-Laird", "Paule-Mandel", "Restricted Maximum Likelihood", 
+            "Restricted Maximum Likelihood with modified HKSJ", 
+            "Restricted Maximum Likelihood without HKSJ", 
+            "Generalised Linear Mixed-Effects Model", "Restricted Maximum Likelihood")
+
+effect_est <- as.vector(c("Odds Ratio", "Odds Ratio", "Odds Ratio", "Odds Ratio",
+                          "Odds Ratio", "Odds Ratio", "Odds Ratio", "Odds Ratio",
+                          "Arcsine Difference"))
+
+## Combine the new column of study names with the prediction
+## and heterogeneity data
+
+tabdat <- as.data.frame(cbind(models, tabdat_predict, tabdat_hetero, effect_est))
+
+## Replace tau^2 and pi.ub with NA for the fixed effect models
+
+tabdat[1:2, c(6,8)] <- "NA"
+
+## Create the final table
+
+tabdat %>%
+  gt(
+  rowname_col = "models",
+  groupname_col = "effect_est") %>%
+  tab_stubhead(label = "Statistical Model") %>%
+  cols_label(
+    V1 = "Estimate",
+    V3 = "Lower bound",
+    V4 = "Upper bound",
+    V5 = "Lower bound",
+    V6 = "Upper bound",
+    pval = "p-value",
+    tau2 = "tau-squared",
+    models = "Statistical Model") %>%
+  tab_spanner(
+    label = "95% confidence interval",
+    columns = c(V3, V4)) %>%
+  tab_spanner(
+    label = "95% prediction interval",
+    columns = c(V5, V6)) %>%
+  tab_spanner(
+    label = "Heterogeneity",
+    columns = c(tau2)) %>%
+  tab_spanner(
+    label = "Effect Size",
+    columns = c(V1, V3, V4, V5, V6, pval)) %>%
+  tab_footnote(
+    footnote = "Confidence interval calculated using t-distribution",
+    locations = cells_stub(rows = models == "Generalised Linear Mixed-Effects Model"),
+    placement = "right") %>%
+  tab_footnote(
+    footnote = "Conditional model, approximate likelihood",
+    locations = cells_stub(rows = models == "Generalised Linear Mixed-Effects Model"),
+    placement = "right") %>%
+  tab_footnote(
+    footnote = "Confidence interval calculated using HKSJ adjustment",
+    locations = list(cells_stub(rows = models == "DerSimonian-Laird"), 
+                                cells_stub(rows = models == "Paule-Mandel"),
+                                cells_stub(rows = models == "Restricted Maximum Likelihood")),
+    placement = "right") %>%
+  opt_footnote_marks(
+    marks = "standard")
+```
+
+## Summary Plot of Different Models
+
+- Have to exclude the arcsine difference model as this is a different x-axis scale
+
+### Confirmed AAGA
+
+```{r summ_plot_confirmed, fig.height=16, fig.width=11}
+## Calculate the individual study ORs for the IV models
+IVdat <- escalc(measure="OR", ai=Females_aware, bi=Females_unaware,
+              ci=Males_aware, di=Males_unaware, data=dat, 
+              subset=(Alloc=="Confirmed"), slab=paste(Study,Year, sep=", "))
+IVdat <- IVdat %>%
+  group_by(Study) %>%
+  arrange(Year)
+
+## Calculate the summary statistics for each model
+res_Peto <- rma.peto(ai=Females_aware, bi=Females_unaware, ci=Males_aware, di=Males_unaware,
+        data=IVdat, slab=paste(Study,Year, sep=", "))
+res_MH <- rma.mh(measure="OR", ai=Females_aware, bi=Females_unaware,
+              ci=Males_aware, di=Males_unaware, data=IVdat,
+              slab=paste(Study,Year, sep=","))
+res_DL <- rma(yi, vi, data=IVdat, 
+              test="knha", method = "DL")
+res_PM <- rma(yi, vi, data=IVdat, 
+                      test="knha", method = "PM")
+res_REML <- rma(yi, vi, data=IVdat, 
+                        test="knha", method = "REML")
+res_REML_adhoc <- rma(yi, vi, data=IVdat, 
+                              test="adhoc", method = "REML")
+res_REML_z <- rma(yi, vi, data=IVdat, 
+                          test="z", method = "REML")
+res_GLMM <- rma.glmm(measure="OR", ai=Females_aware, 
+                             bi=Females_unaware, 
+                             ci=Males_aware, di=Males_unaware, data=dat, 
+                             slab=paste(Study,Year, sep=", "), 
+                             model = "CM.AL", subset=(Alloc=="Confirmed"))
+mlabfunFE <- function(text, res_Peto) {
+  list(bquote(paste(.(text),
+                    " (Q = ", .(formatC(res_Peto$QE, digits=2, format="f")),
+                    ", df = ", .(res_Peto$k - res_Peto$p),
+                    ", p ", .(metafor:::.pval(res_Peto$QEp, digits=2, showeq=TRUE, sep=" ")), "; ",
+                    I^2, " = ", .(formatC(res_Peto$I2, digits=1, format="f")), "%)")))}
+mlabfunRE <- function(text, res_DL) {
+  list(bquote(paste(.(text),
+                    " (Q = ", .(formatC(res_DL$QE, digits=2, format="f")), 
+                    ", df = ", .(res_DL$k - res_DL$p),
+                    ", p ", .(metafor:::.pval(res_DL$QEp, digits=2, showeq=TRUE, sep=" ")), "; ",
+                    I^2, " = ", .(formatC(res_DL$I2, digits=1, format="f")), "%, ",
+                    tau^2, " = ", .(formatC(res_DL$tau2, digits=2, format="f")), ")")))}
+mlabfunGLMM <- function(text, res_GLMM) {
+  list(bquote(paste(.(text),
+                    " (Q (LRT) = ", .(formatC(res_GLMM$QE.LRT, digits=2, format="f")),
+                    ", df = ", .(res_GLMM$k - res_GLMM$p),
+                    ", p ", .(metafor:::.pval(res_GLMM$QEp.LRT, digits=2, showeq=TRUE, sep=" ")), "; ",
+                    I^2, " = ", .(formatC(res_GLMM$I2, digits=1, format="f")), "%, ",
+                    tau^2, " = ", .(formatC(res_GLMM$tau2, digits=2, format="f")), ")")))}
+
+forest(res_Peto, xlim=c(-13.5, 7), at=log(c(0.1, 0.25, 1, 4, 7)), atransf=exp, showweights=FALSE,
+        col ="orange", border="orange", colout="blue",
+       ilab=cbind(IVdat$Females_aware, IVdat$Females_unaware, 
+                  IVdat$Males_aware, IVdat$Males_unaware,
+       IVdat$Total),
+       ilab.xpos=c(-8,-6.9,-5.8,-4.7,-3.6), cex=.9,
+       ylim=c(-8, 33),
+       mlab=mlabfun("Peto Model", res_Peto),
+       header="Authors, Year")
+
+addpoly(res_MH, row=-2, cex=.9, col="orange", border="orange", 
+        mlab=mlabfunFE("MH Method", res_MH))
+addpoly(res_DL, row= -3, cex=.9, col="orange", border="orange", 
+        mlab=mlabfunRE("DL Method", res_DL))
+addpoly(res_PM, row= -4, cex=.9, col="orange", border="orange", 
+        mlab=mlabfunRE("PM Method", res_PM))
+addpoly(res_REML, row=-5, cex=.9, col="orange", border="orange", 
+        mlab=mlabfunRE("REML Method", res_REML))
+addpoly(res_REML_adhoc, row=-6, cex=.9, col="orange", border="orange", 
+        mlab=mlabfunRE("REML Method, ad hoc SE adj.", res_REML_adhoc))
+addpoly(res_REML_z, row=-7, cex=.9, col="orange", border="orange", 
+        mlab=mlabfunRE("REML Method, z-distribution SE", res_REML_z))
+addpoly(res_GLMM, row=-8, cex=.9, col="orange", border="orange", 
+        mlab=mlabfunGLMM("GLMM (CM, AL)", res_GLMM))
+par(cex=0.9)
+text(c(-8,-6.9,-5.8,-4.7,-3.6), 31.5, c("Aware", "Unaware", "Aware", "Unaware", "n"))
+text(c(-7.4,-5.2), 32.5, c("Females", "Males"))
+par(font=1, cex=1)
+text(c(-1.5,1.5), -9, c("Higher in males", "Higher in females"))
+
+```
+
+### Confirmed or Possible AAGA
+```{r summ_plot_Combined, fig.height=16, fig.width=11}
+## Calculate the individual study ORs for the IV models
+IVdat <- escalc(measure="OR", ai=Females_aware, bi=Females_unaware,
+              ci=Males_aware, di=Males_unaware, data=dat, 
+              subset=(Alloc=="Combined"), slab=paste(Study,Year, sep=", "))
+IVdat <- IVdat %>%
+  group_by(Study) %>%
+  arrange(Year)
+
+## Calculate the summary statistics for each model
+res_Peto <- rma.peto(ai=Females_aware, bi=Females_unaware, ci=Males_aware, di=Males_unaware,
+        data=IVdat, slab=paste(Study,Year, sep=", "))
+res_MH <- rma.mh(measure="OR", ai=Females_aware, bi=Females_unaware,
+              ci=Males_aware, di=Males_unaware, data=IVdat,
+              slab=paste(Study,Year, sep=","))
+res_DL <- rma(yi, vi, data=IVdat, 
+              test="knha", method = "DL")
+res_PM <- rma(yi, vi, data=IVdat, 
+                      test="knha", method = "PM")
+res_REML <- rma(yi, vi, data=IVdat, 
+                        test="knha", method = "REML")
+res_REML_adhoc <- rma(yi, vi, data=IVdat, 
+                              test="adhoc", method = "REML")
+res_REML_z <- rma(yi, vi, data=IVdat, 
+                          test="z", method = "REML")
+res_GLMM <- rma.glmm(measure="OR", ai=Females_aware, 
+                             bi=Females_unaware, 
+                             ci=Males_aware, di=Males_unaware, data=dat, 
+                             slab=paste(Study,Year, sep=", "), 
+                             model = "CM.AL", subset=(Alloc=="Combined"))
+mlabfunFE <- function(text, res_Peto) {
+  list(bquote(paste(.(text),
+                    " (Q = ", .(formatC(res_Peto$QE, digits=2, format="f")),
+                    ", df = ", .(res_Peto$k - res_Peto$p),
+                    ", p ", .(metafor:::.pval(res_Peto$QEp, digits=2, showeq=TRUE, sep=" ")), "; ",
+                    I^2, " = ", .(formatC(res_Peto$I2, digits=1, format="f")), "%)")))}
+mlabfunRE <- function(text, res_DL) {
+  list(bquote(paste(.(text),
+                    " (Q = ", .(formatC(res_DL$QE, digits=2, format="f")), 
+                    ", df = ", .(res_DL$k - res_DL$p),
+                    ", p ", .(metafor:::.pval(res_DL$QEp, digits=2, showeq=TRUE, sep=" ")), "; ",
+                    I^2, " = ", .(formatC(res_DL$I2, digits=1, format="f")), "%, ",
+                    tau^2, " = ", .(formatC(res_DL$tau2, digits=2, format="f")), ")")))}
+mlabfunGLMM <- function(text, res_GLMM) {
+  list(bquote(paste(.(text),
+                    " (Q (LRT) = ", .(formatC(res_GLMM$QE.LRT, digits=2, format="f")),
+                    ", df = ", .(res_GLMM$k - res_GLMM$p),
+                    ", p ", .(metafor:::.pval(res_GLMM$QEp.LRT, digits=2, showeq=TRUE, sep=" ")), "; ",
+                    I^2, " = ", .(formatC(res_GLMM$I2, digits=1, format="f")), "%, ",
+                    tau^2, " = ", .(formatC(res_GLMM$tau2, digits=2, format="f")), ")")))}
+
+forest(res_Peto, xlim=c(-13.5, 7), at=log(c(0.1, 0.25, 1, 4, 7)), atransf=exp, showweights=FALSE,
+      col ="orange", border="orange", colout="blue",
+       ilab=cbind(IVdat$Females_aware, IVdat$Females_unaware, IVdat$Males_aware, IVdat$Males_unaware,
+       IVdat$Total),
+       ilab.xpos=c(-8,-6.9,-5.8,-4.7,-3.6), cex=.9,
+       ylim=c(-8, 33),
+       mlab=mlabfun("Peto Model", res_Peto),
+       header="Authors, Year")
+
+addpoly(res_MH, row=-2, cex=.9, col="orange", border="orange", 
+        mlab=mlabfunFE("MH Method", res_MH))
+addpoly(res_DL, row= -3, cex=.9, col="orange", border="orange", 
+        mlab=mlabfunRE("DL Method", res_DL))
+addpoly(res_PM, row= -4, cex=.9, col="orange", border="orange", 
+        mlab=mlabfunRE("PM Method", res_PM))
+addpoly(res_REML, row=-5, cex=.9, col="orange", border="orange", 
+        mlab=mlabfunRE("REML Method", res_REML))
+addpoly(res_REML_adhoc, row=-6, cex=.9, col="orange", border="orange", 
+        mlab=mlabfunRE("REML Method, ad hoc SE adj.", res_REML_adhoc))
+addpoly(res_REML_z, row=-7, cex=.9, col="orange", border="orange", 
+        mlab=mlabfunRE("REML Method, z-distribution SE", res_REML_z))
+addpoly(res_GLMM, row=-8, cex=.9, col="orange", border="orange", 
+        mlab=mlabfunGLMM("GLMM (CM, AL)", res_GLMM))
+par(cex=0.9)
+text(c(-8,-6.9,-5.8,-4.7,-3.6), 31.5, c("Aware", "Unaware", "Aware", "Unaware", "n"))
+text(c(-7.4,-5.2), 32.5, c("Females", "Males"))
+par(font=1, cex=1)
+text(c(-1.5,1.5), -9, c("Higher in males", "Higher in females"))
+```
+
+## Removal of 6 studies of concern
+
+- Peto model used
+
+### Confirmed AAGA
+```{r senstivity_6_concerning_confirmed}
+IVdat <- dat %>%
+  filter(Alloc == "Confirmed" & !Cluster == "Celebioglu" & !Cluster == "Hou" 
+         & !Cluster =="Li" & !Cluster =="Messahel" 
+         & !Cluster =="Wang" & !Cluster == "Zhang")
+res <- rma.peto(ai=Females_aware, bi=Females_unaware, ci=Males_aware, di=Males_unaware,
+        data=IVdat,slab=paste(Study,Year, sep=", "))
+IVdat <- IVdat %>%
+  group_by(Study) %>%
+  arrange(weights(res))
+res <- rma.peto(ai=Females_aware, bi=Females_unaware, ci=Males_aware, di=Males_unaware,
+        data=IVdat, slab=paste(Study,Year, sep=", "))
+mlabfun <- function(text, res) {
+  list(bquote(paste(.(text),
+                    " (Q = ", .(formatC(res$QE, digits=2, format="f")),
+                    ", df = ", .(res$k - res$p),
+                    ", p ", .(metafor:::.pval(res$QEp, digits=2, showeq=TRUE, sep=" ")), "; ",
+                    I^2, " = ", .(formatC(res$I2, digits=1, format="f")), "%",
+                 ")")))}
+op <- par(cex=.75, font=8)
+options(na.action = "na.omit")
+forest(res, xlim=c(-13.5, 7), at=log(c(0.1, 0.25, 1, 4, 7)), atransf=exp, showweights=TRUE,
+       col ="orange", border="orange", colout="blue",
+       ilab=cbind(IVdat$Females_aware, IVdat$Females_unaware, IVdat$Males_aware, IVdat$Males_unaware,
+       IVdat$Total),
+       ilab.xpos=c(-8,-6.9,-5.8,-4.7,-3.6), cex=.9,
+       mlab=mlabfun("Peto Model", res),
+       header=c("Authors, Year", "Study Weight, Odds Ratio (95% CI)"))
+par(cex=0.7)
+text(c(-8,-6.9,-5.8,-4.7,-3.6), 26.5, c("Aware", "Unaware", "Aware", "Unaware", "n"))
+text(c(-7.4,-5.2), 27.5, c("Females", "Males"))
+par(font=1, cex=0.75)
+text(c(-1.5,1.5), -2.5, c("Higher in males", "Higher in females"))
+```
+
+### Confirmed or possible AAGA
+```{r sensitivity_6_concerning_combined}
+IVdat <- dat %>%
+  filter(Alloc == "Combined" & !Cluster == "Celebioglu" & !Cluster == "Hou" 
+         & !Cluster =="Li" & !Cluster =="Messahel" 
+         & !Cluster =="Wang" & !Cluster == "Zhang")
+res <- rma.peto(ai=Females_aware, bi=Females_unaware, ci=Males_aware, di=Males_unaware,
+        data=IVdat,slab=paste(Study,Year, sep=", "))
+IVdat <- IVdat %>%
+  group_by(Study) %>%
+  arrange(weights(res))
+res <- rma.peto(ai=Females_aware, bi=Females_unaware, ci=Males_aware, di=Males_unaware,
+        data=IVdat, slab=paste(Study,Year, sep=", "))
+mlabfun <- function(text, res) {
+  list(bquote(paste(.(text),
+                    " (Q = ", .(formatC(res$QE, digits=2, format="f")),
+                    ", df = ", .(res$k - res$p),
+                    ", p ", .(metafor:::.pval(res$QEp, digits=2, showeq=TRUE, sep=" ")), "; ",
+                    I^2, " = ", .(formatC(res$I2, digits=1, format="f")), "%",
+                 ")")))}
+op <- par(cex=.75, font=8)
+options(na.action = "na.omit")
+forest(res, xlim=c(-13.5, 7), at=log(c(0.1, 0.25, 1, 4, 7)), atransf=exp, showweights=TRUE,
+       col ="orange", border="orange", colout="blue",
+       ilab=cbind(IVdat$Females_aware, IVdat$Females_unaware, IVdat$Males_aware, IVdat$Males_unaware,
+       IVdat$Total),
+       ilab.xpos=c(-8,-6.9,-5.8,-4.7,-3.6), cex=.9,
+       mlab=mlabfun("Peto Model", res),
+       header=c("Authors, Year", "Study Weight, Odds Ratio (95% CI)"))
+par(cex=0.7)
+text(c(-8,-6.9,-5.8,-4.7,-3.6), 26.5, c("Aware", "Unaware", "Aware", "Unaware", "n"))
+text(c(-7.4,-5.2), 27.5, c("Females", "Males"))
+par(font=1, cex=0.75)
+text(c(-1.5,1.5), -2.5, c("Higher in males", "Higher in females"))
+```
+
+# Isolated Forearm Technique
+
+## Inverse Variance Method
+
+- As the number of studies is small we should be using the ad hoc correction
+  of the traditional Knapp--Hartung method BUT doing this results in
+  spuriously wide confidence intervals
+
+```{r IFT_REML, fig.height=3, fig.width=8}
+IVdat <- escalc(measure="OR", ai=Females_aware, bi=Females_unaware,
+              ci=Males_aware, di=Males_unaware, data=dat, 
+              subset=(Alloc=="IFT"), slab=paste(Study,Year, sep=", "))
+IVdat <- IVdat %>%
+  filter(Alloc == "IFT") %>%
+  arrange(desc(vi))
+res <- rma(yi, vi, data=IVdat, test="knha", method="REML")
+mlabfun <- function(text, res) {
+  list(bquote(paste(.(text),
+                    " (Q = ", .(formatC(res$QE, digits=2, format="f")), 
+                    ", df = ", .(res$k - res$p),
+                    ", p ", .(metafor:::.pval(res$QEp, digits=2, showeq=TRUE, sep=" ")), "; ",
+                    I^2, " = ", .(formatC(res$I2, digits=1, format="f")), "%, ",
+                    tau^2, " = ", .(formatC(res$tau2, digits=2, format="f")), ")")))}
+op <- par(cex=.75, font=8)
+forest(res, xlim=c(-13.5, 7), at=log(c(0.1, 0.25, 1, 4, 7)), atransf=exp, 
+       showweights=TRUE, col ="orange", border="orange", colout="blue",
+       ilab=cbind(IVdat$Females_aware, IVdat$Females_unaware, IVdat$Males_aware,
+       IVdat$Males_unaware, IVdat$Total),
+       ilab.xpos=c(-8,-6.9,-5.8,-4.7,-3.6), cex=1,
+       mlab=mlabfun("RE Model", res), ylim=c(-2, 6),
+       header=c("Authors, Year", "Study Weight, Odds Ratio (95% CI)"))
+par(cex=0.7)
+text(c(-8,-6.9,-5.8,-4.7,-3.6), 4.5, c("IFT+", "IFT-", "IFT+", "IFT-", "n"))
+text(c(-7.4,-5.2), 5, c("Females", "Males"))
+par(font=1, cex=0.75)
+text(c(-1.5,1.5), -2, c("Higher in males", "Higher in females"))
+```
+
+## Summary Table of Different Models
+
+```{r IFT_Sum_Table}
+
+## Calculate the individual study ORs for the IV models
+IVdat <- escalc(measure="OR", ai=Females_aware, bi=Females_unaware,
+              ci=Males_aware, di=Males_unaware, data=dat, 
+              subset=(Alloc=="IFT"), slab=paste(Study,Year, sep=", "))
+
+## Calculate the summary statistics for each model
+res_DL <- rma(yi, vi, data=IVdat, 
+              test="knha", method = "DL")
+res_DL_predict <- predict(res_DL, transf=exp)
+res_PM <- rma(yi, vi, data=IVdat, 
+                      test="knha", method = "PM")
+res_PM_predict <- predict(res_PM, transf=exp)
+res_REML <- rma(yi, vi, data=IVdat, 
+                        test="knha", method = "REML")
+res_REML_predict <- predict(res_REML, transf=exp)
+res_REML_adhoc <- rma(yi, vi, data=IVdat, 
+                              test="adhoc", method = "REML")
+res_REML_adhoc_predict <- predict(res_REML_adhoc, transf=exp)
+res_REML_z <- rma(yi, vi, data=IVdat, 
+                          test="z", method = "REML")
+res_REML_z_predict <- predict(res_REML_z, transf=exp)
+res_GLMM <- rma.glmm(measure="OR", ai=Females_aware, 
+                             bi=Females_unaware, 
+                             ci=Males_aware, di=Males_unaware, data=dat, 
+                             slab=paste(Study,Year, sep=", "), 
+                             model = "UM.RS", subset=(Alloc=="IFT"))
+res_GLMM_predict <- predict(res_GLMM, transf=exp)
+
+## Combine the effect size statistics into a table
+
+tabdat_predict <-  as.data.frame(rbind(as.numeric(unlist(res_DL_predict)),
+                               as.numeric(unlist(res_PM_predict)), 
+                               as.numeric(unlist(res_REML_predict)), 
+                               as.numeric(unlist(res_REML_adhoc_predict)),
+                               as.numeric(unlist(res_REML_z_predict)),
+                               as.numeric(unlist(res_GLMM_predict))))
+
+tabdat_predict <- tabdat_predict %>%
+  select(1:6, -2) %>%
+  mutate_if(is.numeric, ~round(., 2))
+
+## Combine the heterogeneity statistics into a table
+
+tabdat_hetero <- as.data.frame(rbind(unlist(res_DL),
+                                     unlist(res_PM), unlist(res_REML),
+                                     unlist(res_REML_adhoc), unlist(res_REML_z),
+                                     unlist(res_GLMM)))
+
+tabdat_hetero <- as.data.frame(rbind(res_DL,
+                                     res_PM, res_REML,
+                                     res_REML_adhoc, res_REML_z,
+                                     res_GLMM))
+tabdat_hetero <- tabdat_hetero %>%
+  select(pval, tau2, I2) %>%
+  mutate(pval = as.numeric(pval)) %>%
+  mutate(tau2 = as.numeric(tau2)) %>%
+  mutate(I2 = as.numeric(I2)) %>%
+  mutate_if(is.numeric, ~round(., 2))
+
+
+## Create a new character vector of study names
+
+models <- c("DerSimonian-Laird", "Paule-Mandel", "Restricted Maximum Likelihood", 
+            "Restricted Maximum Likelihood with modified HKSJ", 
+            "Restricted Maximum Likelihood without HKSJ", 
+            "Generalised Linear Mixed-Effects Model")
+
+## Combine the new column of study names with the prediction
+## and heterogeneity data
+
+tabdat <- as.data.frame(cbind(models, tabdat_predict, tabdat_hetero))
+
+## Create the final table
+
+gt(tabdat) %>%
+  cols_label(
+    V1 = "Odds Ratio",
+    V3 = "Lower bound",
+    V4 = "Upper bound",
+    V5 = "Lower bound",
+    V6 = "Upper bound",
+    pval = "p-value",
+    tau2 = "tau-squared",
+    I2 = "I-squared (%)",
+    models = "Statistical Model") %>%
+  tab_spanner(
+    label = "95% confidence interval",
+    columns = c(V3, V4)) %>%
+  tab_spanner(
+    label = "95% prediction interval",
+    columns = c(V5, V6)) %>%
+  tab_spanner(
+    label = "Heterogeneity",
+    columns = c(tau2, I2)) %>%
+  tab_spanner(
+    label = "Effect Size",
+    columns = c(V1, V3, V4, V5, V6, pval)) %>%
+  tab_footnote(
+    footnote = "Confidence interval calculated using t-distribution",
+    locations = cells_body(columns = models, rows = models == "Generalised Linear Mixed-Effects Model"),
+    placement = "right") %>%
+  tab_footnote(
+    footnote = "Unconditional model, random study effects",
+    locations = cells_body(columns = models, rows = 
+                             models == "Generalised Linear Mixed-Effects Model"),
+    placement = "right") %>%
+   tab_footnote(
+    footnote = "Confidence interval calculated using HKSJ adjustment",
+    locations = list(cells_body(columns = models, rows = models == "DerSimonian-Laird"), 
+                                cells_body(columns = models, rows = models == "Paule-Mandel"),
+                                cells_body(columns = models, rows = models == "Restricted Maximum Likelihood")),
+    placement = "right") %>%
+  opt_footnote_marks(
+    marks = "standard")
+```
+
+## Summary Plot of Different Models
+```{r summ_plot_IFT, fig.height=6, fig.width=11}
+## Calculate the individual study ORs for the IV models
+IVdat <- escalc(measure="OR", ai=Females_aware, bi=Females_unaware,
+              ci=Males_aware, di=Males_unaware, data=dat, 
+              subset=(Alloc=="IFT"), slab=paste(Study,Year, sep=", "))
+IVdat <- IVdat %>%
+  filter(Alloc == "IFT") %>%
+  arrange(desc(vi))
+## Calculate the summary statistics for each model
+res_DL <- rma(yi, vi, data=IVdat, 
+              test="knha", method = "DL")
+res_PM <- rma(yi, vi, data=IVdat, 
+                      test="knha", method = "PM")
+res_REML <- rma(yi, vi, data=IVdat, 
+                        test="knha", method = "REML")
+res_REML_adhoc <- rma(yi, vi, data=IVdat, 
+                              test="adhoc", method = "REML")
+res_REML_z <- rma(yi, vi, data=IVdat, 
+                          test="z", method = "REML")
+res_GLMM <- rma.glmm(measure="OR", ai=Females_aware, 
+                             bi=Females_unaware, 
+                             ci=Males_aware, di=Males_unaware, data=dat, 
+                             slab=paste(Study,Year, sep=", "), 
+                             model = "UM.RS", subset=(Alloc=="IFT"))
+mlabfunRE <- function(text, res_DL) {
+  list(bquote(paste(.(text),
+                    " (Q = ", .(formatC(res_DL$QE, digits=2, format="f")), 
+                    ", df = ", .(res_DL$k - res_DL$p),
+                    ", p ", .(metafor:::.pval(res_DL$QEp, digits=2, showeq=TRUE, sep=" ")), "; ",
+                    I^2, " = ", .(formatC(res_DL$I2, digits=1, format="f")), "%, ",
+                    tau^2, " = ", .(formatC(res_DL$tau2, digits=2, format="f")), ")")))}
+mlabfunGLMM <- function(text, res_GLMM) {
+  list(bquote(paste(.(text),
+                    " (Q (LRT) = ", .(formatC(res_GLMM$QE.LRT, digits=2, format="f")),
+                    ", df = ", .(res_GLMM$k - res_GLMM$p),
+                    ", p ", .(metafor:::.pval(res_GLMM$QEp.LRT, digits=2, showeq=TRUE, sep=" ")), "; ",
+                    I^2, " = ", .(formatC(res_GLMM$I2, digits=1, format="f")), "%, ",
+                    tau^2, " = ", .(formatC(res_GLMM$tau2, digits=2, format="f")), ")")))}
+
+forest(res_DL, xlim=c(-13.5, 7), at=log(c(0.1, 0.25, 1, 4, 7)), atransf=exp,
+       col ="orange", border="orange", colout="blue", 
+       ilab=cbind(IVdat$Females_aware, IVdat$Females_unaware, 
+                  IVdat$Males_aware, IVdat$Males_unaware, IVdat$Total),
+       ilab.xpos=c(-8,-6.9,-5.8,-4.7,-3.6), cex=1,
+       mlab=mlabfunRE("DL Method", res_Peto), ylim=c(-7, 6),
+       header="Authors, Year")
+addpoly(res_PM, row= -2, cex=1, col="orange", border="orange", 
+        mlab=mlabfunRE("PM Method", res_PM))
+addpoly(res_REML, row=-3, cex=1, col="orange", border="orange", 
+        mlab=mlabfunRE("REML Method", res_REML))
+addpoly(res_REML_adhoc, row=-4, cex=1, col="orange", border="orange", 
+        mlab=mlabfunRE("REML Method, ad hoc SE adj.", res_REML_adhoc))
+addpoly(res_REML_z, row=-5, cex=1, col="orange", border="orange", 
+        mlab=mlabfunRE("REML Method, z-distribution SE", res_REML_z))
+addpoly(res_GLMM, row=-6, cex=1, col="orange", border="orange", 
+        mlab=mlabfunGLMM("GLMM (UM, RS)", res_GLMM))
+par(cex=0.9)
+text(c(-8,-6.9,-5.8,-4.7,-3.6), 4.5, c("IFT+", "IFT-", "IFT+", "IFT-", "n"))
+text(c(-7.4,-5.2), 5, c("Females", "Males"))
+par(font=1, cex=1)
+text(c(-1.5,1.5), -7, c("Higher in males", "Higher in females"))
+
+```
+
+## Sequential exclusion analysis
+
+- Inverse variance method (with REML estimator) used for this analysis
+
+```{r IFT_Seq_Excl_Analysis}
+
+## Calculate the inverse variance MA
+
+IVdat <- escalc(measure="OR", ai=Females_aware, bi=Females_unaware,
+              ci=Males_aware, di=Males_unaware, data=dat, 
+              subset=(Alloc=="IFT"), slab=paste(Study,Year, sep=", "))
+res <- rma(yi, vi, data=IVdat, test="knha", method="REML")
+
+## Convert leave1out diagnostics to a data frame (it's printed as a list)
+## Select the columns of interest and round the numeric values to 2 d.p.
+
+tabdat <- as.data.frame(leave1out(res, transf=exp)) %>% 
+  select(estimate, pval, ci.lb, ci.ub, Q, Qp, tau2, I2) %>%
+  mutate_if(is.numeric, ~round(., 2))
+
+## Add another column with study names as rows as I can't figure out
+## how to do it with the existing data frame
+
+study_names <- paste(IVdat$Study, IVdat$Year, sep=", ")
+
+## Combine the new column of study names with the influence data
+
+tabdat1 <- cbind(study_names, tabdat)
+
+## Create a table using the gt package
+
+gt(tabdat1) %>%
+  cols_label(
+    estimate = "Odds Ratio",
+    pval = "p-value",
+    ci.lb = "Lower bound",
+    ci.ub = "Upper bound",
+    Q = "Cochran's Q",
+    Qp = "p-value",
+    tau2 = "tau-squared",
+    I2 = "I-squared (%)",
+    study_names = "Authors, Year") %>%
+   tab_spanner(
+    label = "95% confidence interval",
+    columns = c(ci.lb, ci.ub)) %>%
+  tab_spanner(
+    label = "Heterogeneity",
+    columns = c(Q, Qp, tau2, I2)) %>%
+  tab_spanner(
+    label = "Effect Size",
+    columns = c(estimate, pval, ci.lb, ci.ub)) %>%
+  tab_footnote(
+    footnote = "p < 0.05",
+    locations = cells_body(columns = pval, rows = pval <= 0.05),
+    placement = "right") %>%
+  opt_footnote_marks(
+    marks = "standard")
+```
+
+# Emergence Time
+
+## Forest plot
+```{r Emerge_Time_REML, fig.height=6, fig.width=8}
+
+## Calculate yi and vi to be used for the rma.mv function
+IVdat <- escalc(measure="MD", m1i= Females_aware, sd1i=Females_unaware,
+              m2i=Males_aware, sd2i=Males_unaware, n1i=Group_Size_F, 
+              n2i = Group_Size_M, data=dat, 
+              subset=(Alloc=="Emerge"), slab=paste(Study,Year, sep=", "))
+IVdat <- IVdat %>%
+  arrange(desc(vi))
+## Compute the multilevel MA
+res <- rma.mv(yi = yi, V = vi, 
+                     slab = paste(Study,Year, sep=", "),
+                     data = IVdat,
+                     random = ~ 1 | Cluster/es.id, 
+                     test = "t", 
+                     method = "REML")
+W <- diag(1/res$vi)
+X <- model.matrix(res)
+P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
+res_I2 <- 100 * sum(res$sigma2) / (sum(res$sigma2) + (res$k-res$p)/sum(diag(P)))
+## Construct the forest plot
+mlabfun <- function(text, res) {
+  list(bquote(paste(.(text),
+                    " (Q = ", .(formatC(res$QE, digits=2, format="f")), 
+                    ", df = ", .(res$k - res$p),
+                    ", p ", .(metafor:::.pval(res$QEp, digits=2, showeq=TRUE, sep=" ")), "; ",
+                    I^2, " = ", .(formatC(res_I2, digits=1, format="f")), "%)")))}
+op <- par(cex=.75, font=8)
+forest(res, xlim=c(-40, 15), showweights=TRUE, at=c(-10,-5,0,5),
+       col ="orange", border="orange", colout="blue",
+       ilab=cbind(IVdat$Females_aware, IVdat$Females_unaware, IVdat$Males_aware, 
+       IVdat$Males_unaware, IVdat$Total), addpred=TRUE,
+       ilab.xpos=c(-22,-19.5,-17,-14.5,-12), cex=1,
+       mlab=mlabfun("RE Model", res),
+       header=c("Authors, Year", "Study Weight, Mean Difference (95% CI)"))
+text(-33, -1.5, paste("Prediction interval: ", formatC(predict(res)$pi.lb, digits=2, format="f"), 
+                    ", ", formatC(predict(res)$pi.ub, digits=2, format="f")))
+par(cex=0.7)
+text(c(-22,-19.5,-17,-14.5,-12), 17.5, c("Mean", "SD", "Mean", "SD", "Total (n)"))
+text(c(-20.75,-15.75), 18.5, c("Females", "Males"))
+par(font=1, cex=0.75)
+text(c(-4,4), -1.5, c("Faster in females", "Faster in males"))
+```
+
+### Excluding Tercan et al.
+
+```{r Emerge_Time_REML_excl_Tercan, fig.height=6, fig.width=8}
+
+## Calculate yi and vi to be used for the rma.mv function
+IVdat <- escalc(measure="MD", m1i= Females_aware, sd1i=Females_unaware,
+              m2i=Males_aware, sd2i=Males_unaware, n1i=Group_Size_F, 
+              n2i = Group_Size_M, data=dat, 
+              subset=c(Alloc=="Emerge" & !Cluster=="Tercan"), slab=paste(Study,Year, sep=", "))
+IVdat <- IVdat %>%
+  arrange(desc(vi))
+## Compute the multilevel MA
+res <- rma.mv(yi = yi, V = vi, 
+                     slab = paste(Study,Year, sep=", "),
+                     data = IVdat,
+                     random = ~ 1 | Cluster/es.id, 
+                     test = "t", 
+                     method = "REML")
+W <- diag(1/res$vi)
+X <- model.matrix(res)
+P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
+res_I2 <- 100 * sum(res$sigma2) / (sum(res$sigma2) + (res$k-res$p)/sum(diag(P)))
+## Construct the forest plot
+mlabfun <- function(text, res) {
+  list(bquote(paste(.(text),
+                    " (Q = ", .(formatC(res$QE, digits=2, format="f")), 
+                    ", df = ", .(res$k - res$p),
+                    ", p ", .(metafor:::.pval(res$QEp, digits=2, showeq=TRUE, sep=" ")), "; ",
+                    I^2, " = ", .(formatC(res_I2, digits=1, format="f")), "%)")))}
+op <- par(cex=.75, font=8)
+forest(res, xlim=c(-40, 15), showweights=TRUE, at=c(-10,-5,0,5),
+       col ="orange", border="orange", colout="blue", 
+       ilab=cbind(IVdat$Females_aware, IVdat$Females_unaware, IVdat$Males_aware, 
+       IVdat$Males_unaware, IVdat$Total), addpred=TRUE,
+       ilab.xpos=c(-22,-19.5,-17,-14.5,-12), cex=1,
+       mlab=mlabfun("RE Model", res),
+       header=c("Authors, Year", "Study Weight, Mean Difference (95% CI)"))
+text(-33, -1.5, paste("Prediction interval: ", formatC(predict(res)$pi.lb, digits=2, format="f"), 
+                    ", ", formatC(predict(res)$pi.ub, digits=2, format="f")))
+par(cex=0.7)
+text(c(-22,-19.5,-17,-14.5,-12), 15.5, c("Mean", "SD", "Mean", "SD", "Total (n)"))
+text(c(-20.75,-15.75), 16.5, c("Females", "Males"))
+par(font=1, cex=0.75)
+text(c(-4,4), -1.5, c("Faster in females", "Faster in males"))
+```
+
+### Excluding Tercan and Im
+```{r emerge_time_excl_tercan_im, fig.height=5.5, fig.width=8}
+## Calculate yi and vi to be used for the rma.mv function
+IVdat <- escalc(measure="MD", m1i= Females_aware, sd1i=Females_unaware,
+              m2i=Males_aware, sd2i=Males_unaware, n1i=Group_Size_F, 
+              n2i = Group_Size_M, data=dat, 
+              subset=c(Alloc=="Emerge" & !Cluster=="Tercan" &!Cluster=="Im"), slab=paste(Study,Year, sep=", "))
+IVdat <- IVdat %>%
+  arrange(desc(vi))
+## Compute the multilevel MA
+res <- rma.mv(yi = yi, V = vi, 
+                     slab = paste(Study,Year, sep=", "),
+                     data = IVdat,
+                     random = ~ 1 | Cluster/es.id, 
+                     test = "t", 
+                     method = "REML")
+W <- diag(1/res$vi)
+X <- model.matrix(res)
+P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
+res_I2 <- 100 * sum(res$sigma2) / (sum(res$sigma2) + (res$k-res$p)/sum(diag(P)))
+## Construct the forest plot
+mlabfun <- function(text, res) {
+  list(bquote(paste(.(text),
+                    " (Q = ", .(formatC(res$QE, digits=2, format="f")), 
+                    ", df = ", .(res$k - res$p),
+                    ", p ", .(metafor:::.pval(res$QEp, digits=2, showeq=TRUE, sep=" ")), "; ",
+                    I^2, " = ", .(formatC(res_I2, digits=1, format="f")), "%)")))}
+op <- par(cex=.75, font=8)
+forest(res, xlim=c(-40, 15), showweights=TRUE, at=c(-10,-5,0,5),
+       col ="orange", border="orange", colout="blue", 
+       ilab=cbind(IVdat$Females_aware, IVdat$Females_unaware, IVdat$Males_aware, 
+       IVdat$Males_unaware, IVdat$Total), addpred=TRUE,
+       ilab.xpos=c(-22,-19.5,-17,-14.5,-12), cex=1,
+       mlab=mlabfun("RE Model", res),
+       header=c("Authors, Year", "Study Weight, Mean Difference (95% CI)"))
+text(-33, -1.5, paste("Prediction interval: ", formatC(predict(res)$pi.lb, digits=2, format="f"), 
+                    ", ", formatC(predict(res)$pi.ub, digits=2, format="f")))
+par(cex=0.7)
+text(c(-22,-19.5,-17,-14.5,-12), 12.5, c("Mean", "SD", "Mean", "SD", "Total (n)"))
+text(c(-20.75,-15.75), 13.5, c("Females", "Males"))
+par(font=1, cex=0.75)
+text(c(-4,4), -1.5, c("Faster in females", "Faster in males"))
+```
+
+
+### IV heterogeneity model
+
+- This is a random effects model with fixed effect weights
+- This model was invented as the random effects model heavily penalizes the weight of
+  larger studies when heterogeneity is present
+- The higher weight awarded to Tercan et al. in this model makes
+  the findings insignificant
+
+```{r Emerge_Time_REML_IVhet, fig.height=6, fig.width=8}
+
+## Calculate yi and vi to be used for the rma.mv function
+IVdat <- escalc(measure="MD", m1i= Females_aware, sd1i=Females_unaware,
+              m2i=Males_aware, sd2i=Males_unaware, n1i=Group_Size_F, 
+              n2i = Group_Size_M, data=dat, 
+              subset=(Alloc=="Emerge"), slab=paste(Study,Year, sep=", "))
+IVdat <- IVdat %>%
+  arrange(desc(vi))
+## Compute the multilevel MA
+res <- rma(yi, vi, slab = paste(Study,Year, sep=", "), data = IVdat, method="REML", weights=1/vi)
+
+## Construct the forest plot
+mlabfun <- function(text, res) {
+  list(bquote(paste(.(text),
+                    " (Q = ", .(formatC(res$QE, digits=2, format="f")), 
+                    ", df = ", .(res$k - res$p),
+                    ", p ", .(metafor:::.pval(res$QEp, digits=2, showeq=TRUE, sep=" ")), "; ",
+                    I^2, " = ", .(formatC(res$I2, digits=1, format="f")), "%)")))}
+op <- par(cex=.75, font=8)
+forest(res, xlim=c(-40, 18), showweights=TRUE, at=c(-10,-5,0,5),
+       col ="orange", border="orange", colout="blue",
+       ilab=cbind(IVdat$Females_aware, IVdat$Females_unaware, IVdat$Males_aware, 
+       IVdat$Males_unaware, IVdat$Total), addpred=TRUE,
+       ilab.xpos=c(-22,-19.5,-17,-14.5,-12), cex=1,
+       mlab=mlabfun("RE Model", res),
+       header=c("Authors, Year", "Study Weight, Mean Difference (95% CI)"))
+text(-33, -1.5, paste("Prediction interval: ", formatC(predict(res)$pi.lb, digits=2, format="f"), 
+                    ", ", formatC(predict(res)$pi.ub, digits=2, format="f")))
+par(cex=0.7)
+text(c(-22,-19.5,-17,-14.5,-12), 17.5, c("Mean", "SD", "Mean", "SD", "Total (n)"))
+text(c(-20.75,-15.75), 18.5, c("Females", "Males"))
+par(font=1, cex=0.75)
+text(c(-4,4), -1.5, c("Faster in females", "Faster in males"))
+```
+
+### Fit Comparison
+
+```{r Multilevel_MA_fit_comparison}
+
+## Calculate yi and vi to be used for the rma.mv function
+IVdat <- escalc(measure="MD", m1i= Females_aware, sd1i=Females_unaware,
+              m2i=Males_aware, sd2i=Males_unaware, n1i=Group_Size_F, 
+              n2i = Group_Size_M, data=dat, 
+              subset=(Alloc=="Emerge"), slab=paste(Study,Year, sep=", "))
+
+## Compute the multilevel MA
+res <- rma.mv(yi = yi, V = vi, 
+                     slab = paste(Study,Year, sep=", "),
+                     data = IVdat,
+                     random = ~ 1 | Cluster/es.id, 
+                     test = "t", 
+                     method = "REML")
+
+## Compute the multilevel MA but set the level 3 variance to 0
+res_removed <- rma.mv(yi = yi, V = vi, 
+                     slab = paste(Study,Year, sep=", "),
+                     data = IVdat,
+                     random = ~ 1 | Cluster/es.id, 
+                     test = "t", 
+                     method = "REML",
+                     sigma2 =  c(0, NA))
+
+## Compare the two models
+tabdat <- as.data.frame(round(fitstats(res,res_removed), 1))
+row_names <- c("Log Likelihood", "Deviance", "AIC", "BIC", "AICc")
+
+tabdat1 <- cbind(row_names, tabdat)
+
+tabdat1 %>% 
+  gt(
+  rowname_col = "models",
+  groupname_col = "effect_est") %>%
+  cols_label(
+    res = "Three-level model",
+    res_removed = "Two-level model",
+    row_names = "Fit Statistic")
+
+```
+
+### Heterogeneity calculation
+
+```{r Multilevel_MA_Hetero, fig.height=6, fig.width=5}
+
+## Calculate yi and vi to be used for the rma.mv function
+IVdat <- escalc(measure="MD", m1i= Females_aware, sd1i=Females_unaware,
+              m2i=Males_aware, sd2i=Males_unaware, n1i=Group_Size_F, 
+              n2i = Group_Size_M, data=dat, 
+              subset=(Alloc=="Emerge"), slab=paste(Study,Year, sep=", "))
+
+## Compute the multilevel MA
+res <- rma.mv(yi = yi, V = vi, 
+                     slab = paste(Study,Year, sep=", "),
+                     data = IVdat,
+                     random = ~ 1 | Cluster/es.id, 
+                     test = "t", 
+                     method = "REML")
+
+## Plot the level-specific graphicall using dmetar
+plot(var.comp(res))
+
+## Compute the multilevel equivalent of I^2
+W <- diag(1/res$vi)
+X <- model.matrix(res)
+P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
+res_I2 <- round(100 * sum(res$sigma2) / (sum(res$sigma2) + (res$k-res$p)/sum(diag(P))), 0)
+
+## Determine how much variance attributable to within- vs. between-cluster heterogeneity
+I2_breakdown <- as.data.frame(round(100 * res$sigma2 / 
+                                     (sum(res$sigma2) + (res$k-res$p)/sum(diag(P)))), 2)
+row_names <- c("I-squared in the three-level model (%)", "Total heterogeneity that is due to between-cluster variability", "Total heterogeneity that is due to within-cluster variability")
+tabdat <- rbind(res_I2, I2_breakdown)
+tabdat <- as.data.frame(cbind(row_names, tabdat))
+colnames(tabdat) <- c("row_names", "i_squared")
+
+tabdat %>%
+   gt(
+  rowname_col = "row_names") %>%
+  cols_label(
+    row_names = "Heterogeneity Statistic",
+    i_squared = "Value")
+```
+
+### Robust Variance Estimation
+
+```{r Multilevel_MA_RVE}
+
+## Calculate yi and vi to be used for the rma.mv function
+IVdat <- escalc(measure="MD", m1i= Females_aware, sd1i=Females_unaware,
+              m2i=Males_aware, sd2i=Males_unaware, n1i=Group_Size_F, 
+              n2i = Group_Size_M, data=dat, 
+              subset=(Alloc=="Emerge"), slab=paste(Study,Year, sep=", "))
+
+## Compute the multilevel MA
+res <- rma.mv(yi = yi, V = vi, 
+                     slab = paste(Study,Year, sep=", "),
+                     data = IVdat,
+                     random = ~ 1 | Cluster/es.id, 
+                     test = "t", 
+                     method = "REML")
+
+## Tabulate the findings of RVE on the multilevel MA
+robust(res, cluster=Cluster, clubSandwich=FALSE)
+```
+
+## Sequential Exclusion Analysis
+
+- This is not a multilevel analysis as you cannot use the leave1out()
+  function with the rma.mv() function
+
+```{r Emergence_Seq_Excl_Analysis}
+
+## Calculate the inverse variance MA
+
+IVdat <- escalc(measure="MD", m1i= Females_aware, sd1i=Females_unaware,
+              m2i=Males_aware, sd2i=Males_unaware, n1i=Group_Size_F, 
+              n2i = Group_Size_M, data=dat, 
+              subset=(Alloc=="Emerge"), slab=paste(Study,Year, sep=", "))
+res <- rma(yi, vi, data=IVdat, method="REML", test="knha")
+
+## Convert leave1out diagnostics to a data frame (it's printed as a list)
+## Select the columns of interest and round the numeric values to 2 d.p.
+
+tabdat <- as.data.frame(leave1out(res)) %>% 
+  select(estimate, pval, ci.lb, ci.ub, Q, Qp, tau2, I2) %>%
+  mutate_if(is.numeric, ~round(., 2))
+
+## Add another column with study names as rows as I can't figure out
+## how to do it with the existing data frame
+
+study_names <- paste(IVdat$Study, IVdat$Year, sep=", ")
+
+## Combine the new column of study names with the influence data
+
+tabdat1 <- cbind(study_names, tabdat)
+
+## Create a table using the gt package
+
+gt(tabdat1) %>%
+  cols_label(
+    estimate = "Mean difference",
+    pval = "p-value",
+    ci.lb = "Lower bound",
+    ci.ub = "Upper bound",
+    Q = "Cochran's Q",
+    Qp = "p-value",
+    tau2 = "tau-squared",
+    I2 = "I-squared (%)",
+    study_names = "Authors, Year") %>%
+  tab_spanner(
+    label = "95% confidence interval",
+    columns = c(ci.lb, ci.ub)) %>%
+  tab_spanner(
+    label = "Heterogeneity",
+    columns = c(Q, Qp, tau2, I2)) %>%
+  tab_spanner(
+    label = "Effect Size",
+    columns = c(estimate, pval, ci.lb, ci.ub)) %>%
+  tab_footnote(
+    footnote = "Females - Males",
+    locations = cells_column_labels(columns = estimate),
+    placement = "right") %>%
+  tab_footnote(
+    footnote = "p < 0.05",
+    locations = cells_body(columns = pval, rows = pval <= 0.05),
+    placement = "right") %>%
+  opt_footnote_marks(
+    marks = "standard")
+
+```
+
+## Meta-regression
+
+### Correlation Matrix
+
+- Needed to confirm that our variables are no collinear
+
+```{r Correlation_Matrix}
+
+## Confirm that our co-variates are not co-linear 
+
+dat[,c("Age_combined_mean", "Duration_combined_mean")] %>% 
+  chart.Correlation()
+
+```
+
+### Forest Plot Showing Moderator Values
+
+```{r Forest_plot_moderators, fig.height=6, fig.width=8}
+
+## Calculate individual study mean differences
+
+IVdat <- escalc(measure="MD", m1i= Females_aware, sd1i=Females_unaware,
+              m2i=Males_aware, sd2i=Males_unaware, n1i=Group_Size_F, 
+              n2i = Group_Size_M, data=dat, 
+              subset=(Alloc=="Emerge"), slab=paste(Study,Year, sep=", "))
+res <- rma.mv(yi = yi, V = vi, 
+                     slab = paste(Study,Year, sep=", "),
+                     data = IVdat,
+                     random = ~ 1 | Cluster/es.id, 
+                     test = "t", 
+                     method = "REML")
+W <- diag(1/res$vi)
+X <- model.matrix(res)
+P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
+res_I2 <- 100 * sum(res$sigma2) / (sum(res$sigma2) + (res$k-res$p)/sum(diag(P)))
+## Construct the forest plot
+mlabfun <- function(text, res) {
+  list(bquote(paste(.(text),
+                    " (Q = ", .(formatC(res$QE, digits=2, format="f")), 
+                    ", df = ", .(res$k - res$p),
+                    ", p ", .(metafor:::.pval(res$QEp, digits=2, showeq=TRUE, sep=" ")), "; ",
+                    I^2, " = ", .(formatC(res_I2, digits=1, format="f")), "%, ")))}
+op <- par(cex=.75, font=8)
+forest(res, xlim=c(-40, 15), showweights=TRUE, at=c(-10,-5,0,5),
+       col ="orange", border="orange", colout="blue", order="vi", addpred=TRUE,
+       ilab=cbind(round(IVdat$Age_combined_mean, 1), round(IVdat$Duration_combined_mean, 1), 
+                  IVdat$Maintenance_anaesthetic),
+       ilab.xpos=c(-22,-17,-12), cex=1,
+       mlab=mlabfun("RE Model", res),
+       header=c("Authors, Year", "Study Weight, Mean Difference (95% CI)"))
+text(-33, -1.5, paste("Prediction interval: ", formatC(predict(res)$pi.lb, digits=2, format="f"), 
+                    ", ", formatC(predict(res)$pi.ub, digits=2, format="f")))
+par(cex=0.7)
+text(c(-22,-17,-12), 17.5, c("Age", "Duration", 
+      "Anaesthetic"))
+par(font=1, cex=0.75)
+text(c(-4,4), -1.5, c("Faster in females", "Faster in males"))
+```
+
+### Multi-model inference
+
+```{r multi-model_inference, fig.height=2, fig.width=6}
+IVdat <- escalc(measure="MD", m1i= Females_aware, sd1i=Females_unaware,
+              m2i=Males_aware, sd2i=Males_unaware, n1i=Group_Size_F, 
+              n2i = Group_Size_M, data=dat, 
+              subset=(Alloc=="Emerge"), slab=paste(Study,Year, sep=", "))
+IVdat$se <- sqrt(IVdat$vi)
+
+## Construct models with and without moderators
+multi <- multimodel.inference(TE = "yi", 
+                     seTE = "se",
+                     data = IVdat,
+                     predictors = c("Age_combined_mean", "Duration_combined_mean", 
+                                    "Maintenance_anaesthetic"),
+                     interaction = FALSE)
+multi$top5.models
+multi$predictor.importance.plot
+```
+
+### Meta-regression Model
+
+- Multimodel inference above suggests that age + anaesthetic agent provies the best fit
+- Forced entry methods used (all variables forced into the model simultaneously)
+
+```{r Meta_Regression}
+
+## Calculate individual study mean differences
+
+IVdat <- escalc(measure="MD", m1i= Females_aware, sd1i=Females_unaware,
+              m2i=Males_aware, sd2i=Males_unaware, n1i=Group_Size_F, 
+              n2i = Group_Size_M, data=dat, 
+              subset=(Alloc=="Emerge"), slab=paste(Study,Year, sep=", "))
+
+res <- rma.mv(yi = yi, V = vi, 
+                     slab = paste(Study,Year, sep=", "),
+                     data = IVdat,
+                     random = ~ 1 | Cluster/es.id, 
+                     test = "t", 
+                     method = "REML",
+                  mods = ~ Age_combined_mean +
+           Maintenance_anaesthetic)
+tabdat <- as.data.frame(cbind(as.numeric(unlist(res$beta)), as.numeric(unlist(res$pval)),
+                as.numeric(unlist(res$ci.lb)), as.numeric(unlist(res$ci.ub))))
+names <- c("Maintenance anesthetic = mixed", "Age",
+           "Maintenance anaesthetic = propofol", "Maintenance anaesthetic = volatile")
+tabdat <- cbind(names, tabdat)
+
+tabdat %>%
+  mutate_if(is.numeric, ~round(., 2)) %>%
+ gt(
+  rowname_col = "names") %>%
+  cols_label(
+    names = "Variable",
+    V1 = "Estimate",
+    V2 = "p value",
+    V3 = "Lower bound",
+    V4 = "Upper bound") %>%
+  tab_spanner(
+    label = "95% confidence interval",
+    columns = c(V3, V4)) %>%
+  tab_footnote(
+    footnote = "p < 0.05",
+    locations = cells_body(columns = V2, rows = V2 <= 0.05),
+    placement = "right") %>%
+  opt_footnote_marks(
+    marks = "standard")
+```
+
+### Heterogeneity accounted for
+
+- Based on a two-level model (can't get this output from a three-level)
+
+```{r Hetero_accounted}
+IVdat <- escalc(measure="MD", m1i= Females_aware, sd1i=Females_unaware,
+              m2i=Males_aware, sd2i=Males_unaware, n1i=Group_Size_F, 
+              n2i = Group_Size_M, data=dat, 
+              subset=(Alloc=="Emerge"), slab=paste(Study,Year, sep=", "))
+
+rma(yi =yi, vi = vi, 
+                     slab = paste(Study,Year, sep=", "),
+                     data = IVdat,
+                     test = "adhoc", 
+                     method = "REML",
+                  mods = ~ Age_combined_mean +
+           Maintenance_anaesthetic)
+```
+
+### Fit comparison of model with moderators to that without
+
+```{r Model_comparsion}
+IVdat <- escalc(measure="MD", m1i= Females_aware, sd1i=Females_unaware,
+              m2i=Males_aware, sd2i=Males_unaware, n1i=Group_Size_F, 
+              n2i = Group_Size_M, data=dat, 
+              subset=(Alloc=="Emerge"), slab=paste(Study,Year, sep=", "))
+
+## Construct models with and without moderators
+res1 <- rma.mv(yi = yi, V = vi, 
+                     slab = paste(Study,Year, sep=", "),
+                     data = IVdat,
+                     random = ~ 1 | Cluster/es.id, 
+                     test = "t", 
+                     method = "REML")
+
+res2 <- rma.mv(yi = yi, V = vi, 
+                     slab = paste(Study,Year, sep=", "),
+                     data = IVdat,
+                     random = ~ 1 | Cluster/es.id, 
+                     test = "t", 
+                     method = "REML",
+                  mods = ~ Age_combined_mean +
+           Maintenance_anaesthetic)
+
+tabdat <- as.data.frame(round(fitstats(res1,res2), 1))
+row_names <- c("Log Likelihood", "Deviance", "AIC", "BIC", "AICc")
+
+tabdat1 <- cbind(row_names, tabdat)
+
+tabdat1 %>% 
+  gt(
+  rowname_col = "models",
+  groupname_col = "effect_est") %>%
+  cols_label(
+    res1 = "Model Without Moderators",
+    res2 = "Model With Moderators",
+    row_names = "Fit Statistic")
+
+```
+
+### Robust variance estimation
+
+```{r Multilevel_MA_mods_RVE}
+
+## Calculate yi and vi to be used for the rma.mv function
+IVdat <- escalc(measure="MD", m1i= Females_aware, sd1i=Females_unaware,
+              m2i=Males_aware, sd2i=Males_unaware, n1i=Group_Size_F, 
+              n2i = Group_Size_M, data=dat, 
+              subset=(Alloc=="Emerge"), slab=paste(Study,Year, sep=", "))
+
+## Compute the multilevel MA
+res <- rma.mv(yi = yi, V = vi, 
+                     slab = paste(Study,Year, sep=", "),
+                     data = IVdat,
+                     random = ~ 1 | Cluster/es.id, 
+                     test = "t", 
+                     method = "REML",
+                  mods = ~ Age_combined_mean +
+            Maintenance_anaesthetic)
+
+## Tabulate the findings of RVE on the multilevel MA
+res <- robust(res, cluster=Cluster, clubSandwich=FALSE)
+
+tabdat <- as.data.frame(cbind(as.numeric(unlist(res$beta)), as.numeric(unlist(res$pval)),
+                as.numeric(unlist(res$ci.lb)), as.numeric(unlist(res$ci.ub))))
+names <- c("Maintenance anesthetic = Mixed", "Age",
+           "Maintenance anaesthetic = propofol", "Maintenance anaesthetic = volatile")
+tabdat <- cbind(names, tabdat)
+
+tabdat %>%
+  mutate_if(is.numeric, ~round(., 2)) %>%
+ gt(
+  rowname_col = "names") %>%
+  cols_label(
+    names = "Variable",
+    V1 = "Estimate",
+    V2 = "p value",
+    V3 = "Lower bound",
+    V4 = "Upper bound") %>%
+  tab_spanner(
+    label = "95% confidence interval",
+    columns = c(V3, V4)) %>%
+  tab_footnote(
+    footnote = "p < 0.05",
+    locations = cells_body(columns = V2, rows = V2 <= 0.05),
+    placement = "right") %>%
+  opt_footnote_marks(
+    marks = "standard")
+```
+
+### Permutation testing
+
+- We have to use the two-level MA for this as you cannot use the permutest()
+  function with an rma.mv() object
+
+```{r Perm_Tests}
+
+## Calculate individual study mean differences
+
+IVdat <- escalc(measure="MD", m1i= Females_aware, sd1i=Females_unaware,
+              m2i=Males_aware, sd2i=Males_unaware, n1i=Group_Size_F, 
+              n2i = Group_Size_M, data=dat, 
+              subset=(Alloc=="Emerge"), slab=paste(Study,Year, sep=", "))
+res <- rma(yi, vi, data=IVdat, method="REML", test="knha", mods = ~ Age_combined_mean +
+           Maintenance_anaesthetic)
+ res <- permutest(res)
+tabdat <- as.data.frame(cbind(as.numeric(unlist(res$beta)), as.numeric(unlist(res$pval)),
+                as.numeric(unlist(res$ci.lb)), as.numeric(unlist(res$ci.ub))))
+names <- c("Maintenance anesthetic = Mixed", "Age",
+           "Maintenance anaesthetic = propofol", "Maintenance anaesthetic = volatile")
+tabdat <- cbind(names, tabdat)
+
+tabdat %>%
+  mutate_if(is.numeric, ~round(., 2)) %>%
+ gt(
+  rowname_col = "names") %>%
+  cols_label(
+    names = "Variable",
+    V1 = "Estimate",
+    V2 = "p value",
+    V3 = "Lower bound",
+    V4 = "Upper bound") %>%
+  tab_spanner(
+    label = "95% confidence interval",
+    columns = c(V3, V4)) %>%
+  tab_footnote(
+    footnote = "p < 0.05",
+    locations = cells_body(columns = V2, rows = V2 <= 0.05),
+    placement = "right") %>%
+  opt_footnote_marks(
+    marks = "standard")
+
+```
+
+# Orientation Time
+
+```{r Orientation, fig.height=4, fig.width=10}
+IVdat <- escalc(measure="MD", m1i= Females_aware, sd1i=Females_unaware,
+              m2i=Males_aware, sd2i=Males_unaware, n1i=Group_Size_F, 
+              n2i = Group_Size_M, data=dat, 
+              subset=(Alloc=="Orientation"), slab=paste(Study,Year, sep=", "))
+IVdat <- IVdat %>%
+  arrange(desc(vi))
+res <- rma(yi, vi, data=IVdat, method="REML", test="knha")
+mlabfun <- function(text, res) {
+  list(bquote(paste(.(text),
+                    " (Q = ", .(formatC(res$QE, digits=2, format="f")), 
+                    ", df = ", .(res$k - res$p),
+                    ", p ", .(metafor:::.pval(res$QEp, digits=2, showeq=TRUE, sep=" ")), "; ",
+                    I^2, " = ", .(formatC(res$I2, digits=1, format="f")), "%, ",
+                    tau^2, " = ", .(formatC(res$tau2, digits=2, format="f")), ")")))}
+op <- par(cex=.75, font=8)
+forest(res, xlim=c(-40, 15), showweights=TRUE, at=c(-10,-5,0,5),
+       col ="orange", border="orange", colout="blue", 
+       ilab=cbind(IVdat$Females_aware, IVdat$Females_unaware, IVdat$Males_aware, 
+       IVdat$Males_unaware, IVdat$Total), addpred=TRUE,
+       ilab.xpos=c(-22,-19.5,-17,-14.5,-12), cex=1,
+       mlab=mlabfun("RE Model", res),
+       header=c("Authors, Year", "Study Weight, Mean Difference (95% CI)"))
+text(-34.5, -1.5, paste("Prediction interval: ", formatC(predict(res)$pi.lb, digits=2, format="f"), 
+                    ", ", formatC(predict(res)$pi.ub, digits=2, format="f")))
+par(cex=0.7)
+text(c(-22,-19.5,-17,-14.5,-12), 9.5, c("Mean", "SD", "Mean", "SD", "Total (n)"))
+text(c(-20.75,-15.75), 10.5, c("Females", "Males"))
+par(font=1, cex=0.75)
+text(c(-4,4), -1.5, c("Faster in females", "Faster in males"))
+```
+
+# Extubation time
+
+```{r Extubation, fig.height=4, fig.width=8.5}
+IVdat <- escalc(measure="MD", m1i= Females_aware, sd1i=Females_unaware,
+              m2i=Males_aware, sd2i=Males_unaware, n1i=Group_Size_F, 
+              n2i = Group_Size_M, data=dat, 
+              subset=(Alloc=="Extubation"), slab=paste(Study,Year, sep=", "))
+IVdat <- IVdat %>%
+  arrange(desc(vi))
+res <- rma(yi, vi, data=IVdat, method="REML", test="knha")
+mlabfun <- function(text, res) {
+  list(bquote(paste(.(text),
+                    " (Q = ", .(formatC(res$QE, digits=2, format="f")), 
+                    ", df = ", .(res$k - res$p),
+                    ", p ", .(metafor:::.pval(res$QEp, digits=2, showeq=TRUE, sep=" ")), "; ",
+                    I^2, " = ", .(formatC(res$I2, digits=1, format="f")), "%, ",
+                    tau^2, " = ", .(formatC(res$tau2, digits=2, format="f")), ")")))}
+op <- par(cex=.75, font=8)
+forest(res, xlim=c(-40, 18), showweights=TRUE, at=c(-10,-5,0,5),
+       col ="orange", border="orange", colout="blue", 
+       ilab=cbind(IVdat$Females_aware, IVdat$Females_unaware, IVdat$Males_aware, 
+       IVdat$Males_unaware, IVdat$Total), addpred=TRUE,
+       ilab.xpos=c(-22,-19.5,-17,-14.5,-12), cex=1,
+       mlab=mlabfun("RE Model", res),
+       header=c("Authors, Year", "Study Weight, Mean Difference (95% CI)"))
+text(-33, -1.5, paste("Prediction interval: ", formatC(predict(res)$pi.lb, digits=2, format="f"), 
+                    ", ", formatC(predict(res)$pi.ub, digits=2, format="f")))
+par(cex=0.7)
+text(c(-22,-19.5,-17,-14.5,-12), 8.5, c("Mean", "SD", "Mean", "SD", "Total (n)"))
+text(c(-20.75,-15.75),9.5, c("Females", "Males"))
+par(font=1, cex=0.75)
+text(c(-4,4), -1.5, c("Faster in females", "Faster in males"))
+```
+
+# Command responsiveness time
+
+```{r Command, fig.height=4, fig.width=8.5}
+IVdat <- escalc(measure="MD", m1i= Females_aware, sd1i=Females_unaware,
+              m2i=Males_aware, sd2i=Males_unaware, n1i=Group_Size_F, 
+              n2i = Group_Size_M, data=dat, 
+              subset=(Alloc=="Command"), slab=paste(Study,Year, sep=", "))
+IVdat <- IVdat %>%
+  arrange(desc(vi))
+res <- rma(yi, vi, data=IVdat, method="REML", test="knha")
+mlabfun <- function(text, res) {
+  list(bquote(paste(.(text),
+                    " (Q = ", .(formatC(res$QE, digits=2, format="f")), 
+                    ", df = ", .(res$k - res$p),
+                    ", p ", .(metafor:::.pval(res$QEp, digits=2, showeq=TRUE, sep=" ")), "; ",
+                    I^2, " = ", .(formatC(res$I2, digits=1, format="f")), "%, ",
+                    tau^2, " = ", .(formatC(res$tau2, digits=2, format="f")), ")")))}
+op <- par(cex=.75, font=8)
+forest(res, xlim=c(-40, 15), showweights=TRUE, at=c(-10,-5,0,5),
+       col ="orange", border="orange", colout="blue", 
+       ilab=cbind(IVdat$Females_aware, IVdat$Females_unaware, IVdat$Males_aware, 
+       IVdat$Males_unaware, IVdat$Total),addpred=TRUE,
+       ilab.xpos=c(-22,-19.5,-17,-14.5,-12), cex=1,
+       mlab=mlabfun("RE Model", res),
+       header=c("Authors, Year", "Study Weight, Mean Difference (95% CI)"))
+text(-33, -1.5, paste("Prediction interval: ", formatC(predict(res)$pi.lb, digits=2, format="f"), 
+                    ", ", formatC(predict(res)$pi.ub, digits=2, format="f")))
+par(cex=0.7)
+text(c(-22,-19.5,-17,-14.5,-12), 8.5, c("Mean", "SD", "Mean", "SD", "Total (n)"))
+text(c(-20.75,-15.75), 9.5, c("Females", "Males"))
+par(font=1, cex=0.75)
+text(c(-4,4), -1.5, c("Faster in females", "Faster in males"))
+```
+
+
+# Risk difference AAGA MA
+```{r risk_diff}
+IVdat <- escalc(measure="RR", ai=Females_aware, bi=Females_unaware,
+              ci=Males_aware, di=Males_unaware, data=dat, 
+              subset=(Alloc=="Confirmed"), slab=paste(Study,Year, sep=", "))
+res <- rma(yi, vi, data=IVdat, 
+                        test="knha", method = "REML")
+
+```
+
+# Combined eye opening + command responsiveness + extubation time
+```{r combined_emergence_forest, fig.height=14, fig.width = 8.5}
+layout(mat = matrix(c(1, 2, 3), 
+                        nrow = 3, 
+                        ncol = 1),
+       heights = c(2,1.2,1.2),
+       widths = c(2,2,2))
+## Calculate yi and vi to be used for the rma.mv function
+IVdat <- escalc(measure="MD", m1i= Females_aware, sd1i=Females_unaware,
+              m2i=Males_aware, sd2i=Males_unaware, n1i=Group_Size_F, 
+              n2i = Group_Size_M, data=dat, 
+              subset=(Alloc=="Emerge"), slab=paste(Study,Year, sep=", "))
+IVdat <- IVdat %>%
+  arrange(desc(vi))
+## Compute the multilevel MA
+res <- rma.mv(yi = yi, V = vi, 
+                     slab = paste(Study,Year, sep=", "),
+                     data = IVdat,
+                     random = ~ 1 | Cluster/es.id, 
+                     test = "t", 
+                     method = "REML")
+W <- diag(1/res$vi)
+X <- model.matrix(res)
+P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
+res_I2 <- 100 * sum(res$sigma2) / (sum(res$sigma2) + (res$k-res$p)/sum(diag(P)))
+## Construct the forest plot
+mlabfun <- function(text, res) {
+  list(bquote(paste(.(text),
+                    " (Q = ", .(formatC(res$QE, digits=2, format="f")), 
+                    ", df = ", .(res$k - res$p),
+                    ", p ", .(metafor:::.pval(res$QEp, digits=2, showeq=TRUE, sep=" ")), "; ",
+                    I^2, " = ", .(formatC(res_I2, digits=1, format="f")), "%)")))}
+op <- par(cex=.75, font=8)
+forest(res, xlim=c(-40, 15), showweights=TRUE, at=c(-10,-5,0,5),
+       col ="orange", border="orange", colout="blue", 
+       ilab=cbind(IVdat$Females_aware, IVdat$Females_unaware, IVdat$Males_aware, 
+       IVdat$Males_unaware, IVdat$Total), addpred=TRUE,
+       ilab.xpos=c(-22,-19.5,-17,-14.5,-12), cex=1,
+       mlab=mlabfun("RE Model", res),
+       header=c("Authors, Year", "Study Weight, Mean Difference (95% CI)"))
+text(-33, -1.5, paste("Prediction interval: ", formatC(predict(res)$pi.lb, digits=2, format="f"), 
+                    ", ", formatC(predict(res)$pi.ub, digits=2, format="f")))
+par(cex=0.7)
+text(c(-22,-19.5,-17,-14.5,-12), 17.5, c("Mean", "SD", "Mean", "SD", "Total (n)"))
+text(c(-20.75,-15.75), 18.5, c("Females", "Males"))
+par(font=1, cex=0.75)
+text(c(-4,4), -1.5, c("Faster in females", "Faster in males"))
+par(font=2, cex=1.5)
+text(-38, 19.3, "A")
+
+
+IVdat <- escalc(measure="MD", m1i= Females_aware, sd1i=Females_unaware,
+              m2i=Males_aware, sd2i=Males_unaware, n1i=Group_Size_F, 
+              n2i = Group_Size_M, data=dat, 
+              subset=(Alloc=="Extubation"), slab=paste(Study,Year, sep=", "))
+IVdat <- IVdat %>%
+  arrange(desc(vi))
+res <- rma(yi, vi, data=IVdat, method="REML", test="knha")
+mlabfun <- function(text, res) {
+  list(bquote(paste(.(text),
+                    " (Q = ", .(formatC(res$QE, digits=2, format="f")), 
+                    ", df = ", .(res$k - res$p),
+                    ", p ", .(metafor:::.pval(res$QEp, digits=2, showeq=TRUE, sep=" ")), "; ",
+                    I^2, " = ", .(formatC(res$I2, digits=1, format="f")), "%, ",
+                    tau^2, " = ", .(formatC(res$tau2, digits=2, format="f")), ")")))}
+op <- par(cex=.75, font=8)
+forest(res, xlim=c(-40, 18), showweights=TRUE, at=c(-10,-5,0,5),
+       col ="orange", border="orange", colout="blue", 
+       ilab=cbind(IVdat$Females_aware, IVdat$Females_unaware, IVdat$Males_aware, 
+       IVdat$Males_unaware, IVdat$Total), addpred=TRUE,
+       ilab.xpos=c(-22,-19.5,-17,-14.5,-12), cex=1,
+       mlab=mlabfun("RE Model", res),
+       header=c("Authors, Year", "Study Weight, Mean Difference (95% CI)"))
+text(-33, -1.5, paste("Prediction interval: ", formatC(predict(res)$pi.lb, digits=2, format="f"), 
+                    ", ", formatC(predict(res)$pi.ub, digits=2, format="f")))
+par(cex=0.7)
+text(c(-22,-19.5,-17,-14.5,-12), 8.5, c("Mean", "SD", "Mean", "SD", "Total (n)"))
+text(c(-20.75,-15.75),9.5, c("Females", "Males"))
+par(font=1, cex=0.75)
+text(c(-4,4), -1.5, c("Faster in females", "Faster in males"))
+par(font=2, cex=1.5)
+text(-38, 10, "B")
+
+
+IVdat <- escalc(measure="MD", m1i= Females_aware, sd1i=Females_unaware,
+              m2i=Males_aware, sd2i=Males_unaware, n1i=Group_Size_F, 
+              n2i = Group_Size_M, data=dat, 
+              subset=(Alloc=="Command"), slab=paste(Study,Year, sep=", "))
+IVdat <- IVdat %>%
+  arrange(desc(vi))
+res <- rma(yi, vi, data=IVdat, method="REML", test="knha")
+mlabfun <- function(text, res) {
+  list(bquote(paste(.(text),
+                    " (Q = ", .(formatC(res$QE, digits=2, format="f")), 
+                    ", df = ", .(res$k - res$p),
+                    ", p ", .(metafor:::.pval(res$QEp, digits=2, showeq=TRUE, sep=" ")), "; ",
+                    I^2, " = ", .(formatC(res$I2, digits=1, format="f")), "%, ",
+                    tau^2, " = ", .(formatC(res$tau2, digits=2, format="f")), ")")))}
+op <- par(cex=.75, font=8)
+forest(res, xlim=c(-40, 15), showweights=TRUE, at=c(-10,-5,0,5),
+       col ="orange", border="orange", colout="blue", 
+       ilab=cbind(IVdat$Females_aware, IVdat$Females_unaware, IVdat$Males_aware, 
+       IVdat$Males_unaware, IVdat$Total),addpred=TRUE, 
+       ilab.xpos=c(-22,-19.5,-17,-14.5,-12), cex=1,
+       mlab=mlabfun("RE Model", res),
+       header=c("Authors, Year", "Study Weight, Mean Difference (95% CI)"))
+text(-33, -1.5, paste("Prediction interval: ", formatC(predict(res)$pi.lb, digits=2, format="f"), 
+                    ", ", formatC(predict(res)$pi.ub, digits=2, format="f")))
+par(cex=0.7)
+text(c(-22,-19.5,-17,-14.5,-12), 8.5, c("Mean", "SD", "Mean", "SD", "Total (n)"))
+text(c(-20.75,-15.75), 9.5, c("Females", "Males"))
+par(font=1, cex=0.75)
+text(c(-4,4), -1.5, c("Faster in females", "Faster in males"))
+par(font=2, cex=1.5)
+text(-38, 10, "C")
+
+```
+
